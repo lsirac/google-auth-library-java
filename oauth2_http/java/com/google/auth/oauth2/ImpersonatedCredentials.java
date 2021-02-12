@@ -245,7 +245,7 @@ public class ImpersonatedCredentials extends GoogleCredentials
     try {
       this.sourceCredentials.refreshIfExpired();
     } catch (IOException e) {
-      throw new IOException("Unable to refresh sourceCredentials", e);
+      throw new IOException("Unable to refresh sourceCredentials: " + e.getMessage(), e);
     }
 
     HttpTransport httpTransport = this.transportFactory.create();
