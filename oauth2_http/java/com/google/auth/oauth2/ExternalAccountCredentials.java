@@ -33,14 +33,6 @@ package com.google.auth.oauth2;
 
 import static com.google.common.base.Preconditions.checkNotNull;
 
-import com.google.api.client.json.GenericJson;
-import com.google.api.client.json.JsonObjectParser;
-import com.google.auth.RequestMetadataCallback;
-import com.google.auth.http.HttpTransportFactory;
-import com.google.auth.oauth2.AwsCredentials.AwsCredentialSource;
-import com.google.auth.oauth2.IdentityPoolCredentials.IdentityPoolCredentialSource;
-import com.google.auth.oauth2.PluggableAuthCredentials.PluggableAuthCredentialSource;
-import com.google.common.base.MoreObjects;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.Serializable;
@@ -57,6 +49,15 @@ import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.regex.Pattern;
 import javax.annotation.Nullable;
+
+import com.google.api.client.json.GenericJson;
+import com.google.api.client.json.JsonObjectParser;
+import com.google.auth.RequestMetadataCallback;
+import com.google.auth.http.HttpTransportFactory;
+import com.google.auth.oauth2.AwsCredentials.AwsCredentialSource;
+import com.google.auth.oauth2.IdentityPoolCredentials.IdentityPoolCredentialSource;
+import com.google.auth.oauth2.PluggableAuthCredentials.PluggableAuthCredentialSource;
+import com.google.common.base.MoreObjects;
 
 /**
  * Base external account credentials class.
