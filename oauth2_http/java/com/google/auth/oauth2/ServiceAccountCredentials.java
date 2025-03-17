@@ -89,7 +89,7 @@ import java.util.concurrent.Executor;
  * <p>By default uses a JSON Web Token (JWT) to fetch access tokens.
  */
 public class ServiceAccountCredentials extends GoogleCredentials
-    implements ServiceAccountSigner, IdTokenProvider, JwtProvider {
+    implements ServiceAccountSigner, IdTokenProvider, JwtProvider, TrustBoundaryProvider {
 
   private static final long serialVersionUID = 7807543542681217978L;
   private static final String GRANT_TYPE = "urn:ietf:params:oauth:grant-type:jwt-bearer";
@@ -98,6 +98,8 @@ public class ServiceAccountCredentials extends GoogleCredentials
   private static final int DEFAULT_LIFETIME_IN_SECONDS = 3600;
   private static final LoggerProvider LOGGER_PROVIDER =
       LoggerProvider.forClazz(ServiceAccountCredentials.class);
+  private static final String TRUST_BOUNDARY_LOOKUP_ENDPOINT =
+      "https://iamcredentials.%s/v1/projects/-/serviceAccounts/%s/allowedLocations";
 
   private final String clientId;
   private final String clientEmail;
@@ -112,6 +114,8 @@ public class ServiceAccountCredentials extends GoogleCredentials
   private final int lifetime;
   private final boolean useJwtAccessWithScope;
   private final boolean defaultRetriesEnabled;
+  private final TrustBoundaryInfo trustBoundaryInfo;
+  private final String trustBoundaryLookupUrl;
 
   private transient HttpTransportFactory transportFactory;
 
@@ -150,6 +154,8 @@ public class ServiceAccountCredentials extends GoogleCredentials
     this.lifetime = builder.lifetime;
     this.useJwtAccessWithScope = builder.useJwtAccessWithScope;
     this.defaultRetriesEnabled = builder.defaultRetriesEnabled;
+    this.trustBoundaryLookupUrl = String.format(TRUST_BOUNDARY_LOOKUP_ENDPOINT, builder.universeDomain, builder.clientEmail);
+    this.trustBoundaryInfo = new TrustBoundaryInfo(this, transportFactory);
   }
 
   /**
@@ -241,7 +247,7 @@ public class ServiceAccountCredentials extends GoogleCredentials
    * @param privateKeyPkcs8 RSA private key object for the service account in PKCS#8 format.
    * @param privateKeyId private key identifier for the service account. May be null.
    * @param scopes scope strings for the APIs to be called. May be null or an empty collection.
-   * @param defaultScopes default scope strings for the APIs to be called. May be null or an empty.
+   * @param defaultScopes default scope strings for the APIs to be called. May be null or an empty
    * @return new ServiceAccountCredentials created from a private key
    * @throws IOException if the credential cannot be created from the private key
    */
@@ -1319,5 +1325,26 @@ public class ServiceAccountCredentials extends GoogleCredentials
     public ServiceAccountCredentials build() {
       return new ServiceAccountCredentials(this);
     }
+  }
+
+  @Override
+  public String getTrustBoundaryLookupEndpointUrl() {
+    return trustBoundaryLookupUrl;
+  }
+
+  @Override
+  public TrustBoundaryInfo getTrustBoundaryInfo() {
+    return trustBoundaryInfo;
+  }
+
+  @Override
+  public void refreshTrustBoundary() throws IOException {
+    trustBoundaryInfo.refreshTrustBoundary();
+  }
+
+  @Override
+  public void refresh() throws IOException {
+    super.refresh();
+    refreshTrustBoundary();
   }
 }

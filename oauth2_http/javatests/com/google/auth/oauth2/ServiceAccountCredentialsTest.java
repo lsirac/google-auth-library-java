@@ -82,6 +82,11 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.JUnit4;
+import com.google.api.client.http.LowLevelHttpRequest;
+import com.google.api.client.http.LowLevelHttpResponse;
+import com.google.api.client.testing.http.MockHttpTransport;
+import com.google.api.client.testing.http.MockLowLevelHttpRequest;
+import com.google.api.client.testing.http.MockLowLevelHttpResponse;
 
 /** Test case for {@link ServiceAccountCredentials}. */
 @RunWith(JUnit4.class)
@@ -1657,7 +1662,7 @@ public class ServiceAccountCredentialsTest extends BaseSerializationTest {
     verifyJwtAccess(metadata, "dummy.scope");
 
     // Verify credentialType is correctly set. This is used for token usage metrics.
-    // Self signed jwt flow doesn’t call any token endpoint, thus no token request metrics.
+    // Self signed jwt flow doesn't call any token endpoint, thus no token request metrics.
     assertEquals(
         CredentialTypeForMetrics.SERVICE_ACCOUNT_CREDENTIALS_JWT,
         credentials.getMetricsCredentialType());
@@ -1902,5 +1907,208 @@ public class ServiceAccountCredentialsTest extends BaseSerializationTest {
     } catch (IOException expected) {
       assertTrue(expected.getMessage().contains(expectedMessageContent));
     }
+  }
+
+  @Test
+  public void getTrustBoundaryLookupEndpointUrl() throws IOException {
+    PrivateKey privateKey = OAuth2Utils.privateKeyFromPkcs8(PRIVATE_KEY_PKCS8);
+    ServiceAccountCredentials credentials =
+        ServiceAccountCredentials.newBuilder()
+            .setClientId(CLIENT_ID)
+            .setClientEmail(CLIENT_EMAIL)
+            .setPrivateKey(privateKey)
+            .setPrivateKeyId(PRIVATE_KEY_ID)
+            .setScopes(SCOPES)
+            .setProjectId(PROJECT_ID)
+            .build();
+
+    String expectedUrl = String.format(
+        "https://iamcredentials.%s/v1/projects/-/serviceAccounts/%s/allowedLocations",
+        credentials.getUniverseDomain(), CLIENT_EMAIL);
+    
+    assertEquals(expectedUrl, credentials.getTrustBoundaryLookupEndpointUrl());
+  }
+
+  @Test
+  public void getRequestMetadata_withTrustBoundary() throws IOException {
+    MockTokenServerTransportFactory transportFactory = new MockTokenServerTransportFactory();
+    transportFactory.transport.addClient(CLIENT_ID, "unused-client-secret");
+    transportFactory.transport.addServiceAccount(CLIENT_EMAIL, ACCESS_TOKEN);
+    
+    final String TEST_ENCODED_LOCATIONS = "0xA30";
+    final List<String> TEST_LOCATIONS = 
+        Arrays.asList("us-central1", "us-east1", "europe-west1", "asia-east1");
+    
+    // Create a transport that will respond to trust boundary lookups with test data
+    MockHttpTransport trustBoundaryTransport = new MockHttpTransport() {
+      @Override
+      public LowLevelHttpRequest buildRequest(String method, String url) throws IOException {
+        MockLowLevelHttpRequest request = new MockLowLevelHttpRequest(url);
+        MockLowLevelHttpResponse response = new MockLowLevelHttpResponse();
+        
+        GenericJson responseJson = new GenericJson();
+        responseJson.setFactory(OAuth2Utils.JSON_FACTORY);
+        responseJson.put("locations", TEST_LOCATIONS);
+        responseJson.put("encodedLocations", TEST_ENCODED_LOCATIONS);
+        
+        response.setStatusCode(200);
+        response.setContentType("application/json");
+        response.setContent(responseJson.toString());
+        request.setResponse(response);
+        
+        return request;
+      }
+    };
+    
+    HttpTransportFactory trustBoundaryTransportFactory = () -> trustBoundaryTransport;
+
+    PrivateKey privateKey = OAuth2Utils.privateKeyFromPkcs8(PRIVATE_KEY_PKCS8);
+    ServiceAccountCredentials credentials =
+        ServiceAccountCredentials.newBuilder()
+            .setClientId(CLIENT_ID)
+            .setClientEmail(CLIENT_EMAIL)
+            .setPrivateKey(privateKey)
+            .setPrivateKeyId(PRIVATE_KEY_ID)
+            .setScopes(SCOPES)
+            .setProjectId(PROJECT_ID)
+            .setHttpTransportFactory(transportFactory)
+            .build();
+    
+    // Initialize trust boundary info using the mock transport
+    credentials.initializeTrustBoundaryInfo(trustBoundaryTransportFactory);
+    
+    // Get request metadata
+    Map<String, List<String>> metadata = credentials.getRequestMetadata();
+    
+    // Verify trust boundary header is present
+    assertTrue(metadata.containsKey("x-goog-allowed-resources"));
+    assertEquals(Collections.singletonList(TEST_ENCODED_LOCATIONS), 
+        metadata.get("x-goog-allowed-resources"));
+  }
+
+  @Test
+  public void getTrustBoundaryLookupEndpointUrl_defaultUniverse() throws IOException {
+    ServiceAccountCredentials credentials = ServiceAccountCredentials.newBuilder()
+        .setClientId(CLIENT_ID)
+        .setClientEmail(CLIENT_EMAIL)
+        .setPrivateKeyString(PRIVATE_KEY_PKCS8)
+        .setPrivateKeyId(PRIVATE_KEY_ID)
+        .build();
+
+    String expectedUrl = String.format("https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/%s/allowedLocations", CLIENT_EMAIL);
+    assertEquals(expectedUrl, credentials.getTrustBoundaryLookupEndpointUrl());
+  }
+
+  @Test
+  public void getTrustBoundaryLookupEndpointUrl_customUniverse() throws IOException {
+    ServiceAccountCredentials credentials = ServiceAccountCredentials.newBuilder()
+        .setClientId(CLIENT_ID)
+        .setClientEmail(CLIENT_EMAIL)
+        .setPrivateKeyString(PRIVATE_KEY_PKCS8)
+        .setPrivateKeyId(PRIVATE_KEY_ID)
+        .setUniverseDomain("custom.universe.com")
+        .build();
+
+    String expectedUrl = String.format("https://iamcredentials.custom.universe.com/v1/projects/-/serviceAccounts/%s/allowedLocations", CLIENT_EMAIL);
+    assertEquals(expectedUrl, credentials.getTrustBoundaryLookupEndpointUrl());
+  }
+
+  @Test
+  public void getRequestMetadata_withTrustBoundary_failedLookup() throws IOException {
+    MockHttpTransport transport = new MockHttpTransport() {
+      @Override
+      public LowLevelHttpRequest buildRequest(String method, String url) throws IOException {
+        return new MockLowLevelHttpRequest() {
+          @Override
+          public LowLevelHttpResponse execute() throws IOException {
+            MockLowLevelHttpResponse response = new MockLowLevelHttpResponse();
+            response.setStatusCode(HttpStatusCodes.STATUS_CODE_SERVER_ERROR);
+            return response;
+          }
+        };
+      }
+    };
+
+    HttpTransportFactory transportFactory = () -> transport;
+    ServiceAccountCredentials credentials = ServiceAccountCredentials.newBuilder()
+        .setClientId(CLIENT_ID)
+        .setClientEmail(CLIENT_EMAIL)
+        .setPrivateKeyString(PRIVATE_KEY_PKCS8)
+        .setPrivateKeyId(PRIVATE_KEY_ID)
+        .setHttpTransportFactory(transportFactory)
+        .build();
+
+    Map<String, List<String>> metadata = credentials.getRequestMetadata(null);
+    // Trust boundary header should not be present if lookup failed
+    assertFalse(metadata.containsKey("x-goog-allowed-resources"));
+  }
+
+  @Test
+  public void getRequestMetadata_withTrustBoundary_refreshToken() throws IOException {
+    final String TEST_ENCODED_LOCATIONS = "0xA30";
+    final List<String> TEST_LOCATIONS = Arrays.asList("us-central1", "us-east1");
+    final AtomicBoolean lookupCalled = new AtomicBoolean(false);
+    
+    MockHttpTransport transport = new MockHttpTransport() {
+      @Override
+      public LowLevelHttpRequest buildRequest(String method, String url) throws IOException {
+        if (url.contains("allowedLocations")) {
+          lookupCalled.set(true);
+          return new MockLowLevelHttpRequest() {
+            @Override
+            public LowLevelHttpResponse execute() throws IOException {
+              GenericJson responseJson = new GenericJson();
+              responseJson.setFactory(OAuth2Utils.JSON_FACTORY);
+              responseJson.put("locations", TEST_LOCATIONS);
+              responseJson.put("encodedLocations", TEST_ENCODED_LOCATIONS);
+              
+              MockLowLevelHttpResponse response = new MockLowLevelHttpResponse();
+              response.setStatusCode(HttpStatusCodes.STATUS_CODE_OK);
+              response.setContentType("application/json");
+              response.setContent(responseJson.toString());
+              return response;
+            }
+          };
+        }
+        // Handle token server request
+        return new MockLowLevelHttpRequest() {
+          @Override
+          public LowLevelHttpResponse execute() throws IOException {
+            GenericJson responseJson = new GenericJson();
+            responseJson.setFactory(OAuth2Utils.JSON_FACTORY);
+            responseJson.put("access_token", "new-access-token");
+            responseJson.put("expires_in", 3600);
+            
+            MockLowLevelHttpResponse response = new MockLowLevelHttpResponse();
+            response.setStatusCode(HttpStatusCodes.STATUS_CODE_OK);
+            response.setContentType("application/json");
+            response.setContent(responseJson.toString());
+            return response;
+          }
+        };
+      }
+    };
+
+    HttpTransportFactory transportFactory = () -> transport;
+    ServiceAccountCredentials credentials = ServiceAccountCredentials.newBuilder()
+        .setClientId(CLIENT_ID)
+        .setClientEmail(CLIENT_EMAIL)
+        .setPrivateKeyString(PRIVATE_KEY_PKCS8)
+        .setPrivateKeyId(PRIVATE_KEY_ID)
+        .setHttpTransportFactory(transportFactory)
+        .build();
+
+    // First request should trigger trust boundary lookup
+    Map<String, List<String>> metadata = credentials.getRequestMetadata(null);
+    assertTrue(lookupCalled.get());
+    assertEquals(Collections.singletonList(TEST_ENCODED_LOCATIONS),
+                 metadata.get("x-goog-allowed-resources"));
+
+    // Reset flag and verify second request reuses cached trust boundary info
+    lookupCalled.set(false);
+    metadata = credentials.getRequestMetadata(null);
+    assertFalse(lookupCalled.get());
+    assertEquals(Collections.singletonList(TEST_ENCODED_LOCATIONS),
+                 metadata.get("x-goog-allowed-resources"));
   }
 }

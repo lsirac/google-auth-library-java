@@ -31,13 +31,18 @@
 
 package com.google.auth.oauth2;
 
+import com.google.api.client.json.GenericJson;
+import com.google.api.client.json.JsonFactory;
+import com.google.api.client.json.JsonObjectParser;
 import com.google.api.client.util.Clock;
+import com.google.api.client.util.Preconditions;
 import com.google.auth.Credentials;
-import com.google.auth.RequestMetadataCallback;
 import com.google.auth.http.AuthHttpConstants;
+import com.google.auth.http.HttpTransportFactory;
+import com.google.auth.RequestMetadataCallback;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.MoreObjects;
-import com.google.common.base.Preconditions;
+import com.google.common.base.MoreObjects.ToStringHelper;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterables;
@@ -74,11 +79,15 @@ public class OAuth2Credentials extends Credentials {
 
   @VisibleForTesting private final Duration expirationMargin;
   @VisibleForTesting private final Duration refreshMargin;
+  private transient HttpTransportFactory transportFactory;
 
   // byte[] is serializable, so the lock variable can be final
   @VisibleForTesting final Object lock = new byte[0];
   private volatile OAuthValue value = null;
   @VisibleForTesting transient RefreshTask refreshTask;
+
+  // Trust boundary cache
+  private transient TrustBoundaryInfo trustBoundaryManager;
 
   // Change listeners are not serialized
   private transient List<CredentialsChangedListener> changeListeners;
@@ -180,7 +189,17 @@ public class OAuth2Credentials extends Credentials {
    */
   @Override
   public Map<String, List<String>> getRequestMetadata(URI uri) throws IOException {
-    return unwrapDirectFuture(asyncFetch(MoreExecutors.directExecutor())).requestMetadata;
+    Map<String, List<String>> requestMetadata = unwrapDirectFuture(asyncFetch(MoreExecutors.directExecutor())).requestMetadata;
+    
+    // Add trust boundary if supported
+    if (this instanceof TrustBoundaryProvider) {
+      TrustBoundaryInfo trustInfo = ((TrustBoundaryProvider) this).getTrustBoundaryInfo();
+      if (trustInfo != null) {
+        requestMetadata = trustInfo.addTrustBoundaryToRequestMetadata(requestMetadata);
+      }
+    }
+
+    return requestMetadata;
   }
 
   /**
@@ -192,6 +211,14 @@ public class OAuth2Credentials extends Credentials {
     AsyncRefreshResult refreshResult = getOrCreateRefreshTask();
     refreshResult.executeIfNew(MoreExecutors.directExecutor());
     unwrapDirectFuture(refreshResult.task);
+    
+    // After access token is refreshed, also refresh trust boundary information
+    //initializeTrustBoundaryInfo(transportFactory);
+
+    // Refresh trust boundaries if supported
+    if (this instanceof TrustBoundaryProvider) {
+      ((TrustBoundaryProvider) this).refreshTrustBoundary();
+    }
   }
 
   /**
@@ -691,6 +718,53 @@ public class OAuth2Credentials extends Credentials {
 
     public OAuth2Credentials build() {
       return new OAuth2Credentials(accessToken, refreshMargin, expirationMargin);
+    }
+  }
+
+  protected void addTrustBoundaryToRequestMetadata(Map<String, List<String>> requestMetadata) {
+    if (trustBoundaryManager != null) {
+      trustBoundaryManager.addTrustBoundaryToRequestMetadata(requestMetadata);
+    }
+  }
+
+  /**
+   * Gets the trust boundary lookup endpoint URL if the credential type supports trust boundaries.
+   * 
+   * <p>Most credential types do not support trust boundaries, and will return null.
+   * Specific credential types that do support trust boundaries (like ServiceAccountCredentials)
+   * will override this method to return the appropriate URL.
+   *
+   * @return The trust boundary lookup endpoint URL or null if not supported
+   * @throws IOException if there is an issue getting the universe domain or other values needed
+   */
+  @Nullable
+  protected String getTrustBoundaryLookupEndpointUrl() {
+    return null;
+  }
+
+  /**
+   * Initializes the trust boundary information for this credential.
+   *
+   * <p>This will make a request to the trust boundary lookup endpoint if the credential
+   * type supports trust boundaries. If the endpoint URL is null, no request will be made.
+   *
+   * @param transportFactory The transport factory to use for the request
+   * @throws IOException If there is an error retrieving the trust boundary information
+   */
+  protected void initializeTrustBoundaryInfo(HttpTransportFactory transportFactory) throws IOException {
+    String lookupUrl = getTrustBoundaryLookupEndpointUrl();
+    if (lookupUrl != null) {
+      // Only initialize if trust boundaries are supported and not already initialized
+      if (trustBoundaryManager == null) {
+        trustBoundaryManager = new TrustBoundaryInfo(this, transportFactory);
+        // Store transport factory for future refreshes
+        this.transportFactory = transportFactory;
+        // Fetch the trust boundary information using the current access token
+        trustBoundaryManager.lookupTrustBoundary();
+      } else {
+        // Refresh the trust boundary information with the current access token
+        trustBoundaryManager.refreshTrustBoundary();
+      }
     }
   }
 }

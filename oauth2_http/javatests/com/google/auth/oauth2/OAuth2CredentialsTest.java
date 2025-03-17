@@ -57,6 +57,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
@@ -77,6 +78,15 @@ import org.junit.Test;
 import org.junit.function.ThrowingRunnable;
 import org.junit.runner.RunWith;
 import org.junit.runners.JUnit4;
+import com.google.api.client.http.LowLevelHttpRequest;
+import com.google.api.client.http.LowLevelHttpResponse;
+import com.google.api.client.json.GenericJson;
+import com.google.api.client.testing.http.MockHttpTransport;
+import com.google.api.client.testing.http.MockLowLevelHttpRequest;
+import com.google.api.client.testing.http.MockLowLevelHttpResponse;
+import com.google.api.client.http.HttpStatusCodes;
+import com.google.auth.http.HttpTransportFactory;
+import com.google.auth.oauth2.GoogleCredentials;
 
 /** Test case for {@link OAuth2Credentials}. */
 @RunWith(JUnit4.class)
@@ -983,6 +993,122 @@ public class OAuth2CredentialsTest extends BaseSerializationTest {
     public void onChanged(OAuth2Credentials credentials) throws IOException {
       accessToken = credentials.getAccessToken();
       callCount++;
+    }
+  }
+
+  @Test
+  public void initializeTrustBoundaryInfo_nullEndpoint_doesNotInitialize() throws IOException {
+    MockHttpTransportFactory transportFactory = new MockHttpTransportFactory();
+    OAuth2Credentials credentials = OAuth2Credentials.newBuilder().build();
+    
+    credentials.initializeTrustBoundaryInfo(transportFactory);
+    
+    // Verify no trust boundary manager was created since endpoint was null
+    Map<String, List<String>> requestMetadata = new HashMap<>();
+    credentials.addTrustBoundaryToRequestMetadata(requestMetadata);
+    assertTrue(requestMetadata.isEmpty());
+  }
+
+  @Test
+  public void initializeTrustBoundaryInfo_validEndpoint_initializes() throws IOException {
+    final String TEST_ENCODED_LOCATIONS = "0xA30";
+    final List<String> TEST_LOCATIONS = Arrays.asList("us-central1", "us-east1");
+    
+    MockHttpTransport transport = new MockHttpTransport() {
+      @Override
+      public LowLevelHttpRequest buildRequest(String method, String url) throws IOException {
+        return new MockLowLevelHttpRequest() {
+          @Override
+          public LowLevelHttpResponse execute() throws IOException {
+            GenericJson responseJson = new GenericJson();
+            responseJson.setFactory(OAuth2Utils.JSON_FACTORY);
+            responseJson.put("locations", TEST_LOCATIONS);
+            responseJson.put("encodedLocations", TEST_ENCODED_LOCATIONS);
+            
+            MockLowLevelHttpResponse response = new MockLowLevelHttpResponse();
+            response.setStatusCode(HttpStatusCodes.STATUS_CODE_OK);
+            response.setContentType("application/json");
+            response.setContent(responseJson.toString());
+            return response;
+          }
+        };
+      }
+    };
+
+    HttpTransportFactory transportFactory = () -> transport;
+    OAuth2CredentialsWithTrustBoundary credentials = new OAuth2CredentialsWithTrustBoundary(new AccessToken(ACCESS_TOKEN, null));
+    
+    credentials.initializeTrustBoundaryInfo(transportFactory);
+    
+    // Verify trust boundary info was added to request metadata
+    Map<String, List<String>> requestMetadata = new HashMap<>();
+    
+    credentials.addTrustBoundaryToRequestMetadata(requestMetadata);
+    assertEquals(Collections.singletonList(TEST_ENCODED_LOCATIONS), 
+                 requestMetadata.get("x-goog-allowed-resources"));
+  }
+
+  @Test
+  public void addTrustBoundaryToRequestMetadata_noManager_doesNotModify() throws IOException {
+    OAuth2Credentials credentials = new OAuth2Credentials(null);
+    Map<String, List<String>> requestMetadata = new HashMap<>();
+    
+    credentials.addTrustBoundaryToRequestMetadata(requestMetadata);
+    
+    assertTrue(requestMetadata.isEmpty());
+  }
+
+  @Test
+  public void getRequestMetadata_withTrustBoundary_addsHeader() throws IOException {
+    final String TEST_ENCODED_LOCATIONS = "0xA30";
+    final List<String> TEST_LOCATIONS = Arrays.asList("us-central1", "us-east1");
+    
+    MockHttpTransport transport = new MockHttpTransport() {
+      @Override
+      public LowLevelHttpRequest buildRequest(String method, String url) throws IOException {
+        return new MockLowLevelHttpRequest() {
+          @Override
+          public LowLevelHttpResponse execute() throws IOException {
+            GenericJson responseJson = new GenericJson();
+            responseJson.setFactory(OAuth2Utils.JSON_FACTORY);
+            responseJson.put("locations", TEST_LOCATIONS);
+            responseJson.put("encodedLocations", TEST_ENCODED_LOCATIONS);
+            
+            MockLowLevelHttpResponse response = new MockLowLevelHttpResponse();
+            response.setStatusCode(HttpStatusCodes.STATUS_CODE_OK);
+            response.setContentType("application/json");
+            response.setContent(responseJson.toString());
+            return response;
+          }
+        };
+      }
+    };
+
+    HttpTransportFactory transportFactory = () -> transport;
+    
+    // Create a custom OAuth2Credentials for testing
+    OAuth2CredentialsWithTrustBoundary credentials = new OAuth2CredentialsWithTrustBoundary(new AccessToken(ACCESS_TOKEN, null));
+    
+    credentials.initializeTrustBoundaryInfo(transportFactory);
+    
+    // Create a mutable copy of the metadata map
+    Map<String, List<String>> metadata = new HashMap<>(credentials.getRequestMetadata(null));
+    credentials.addTrustBoundaryToRequestMetadata(metadata);
+    
+    assertEquals(Collections.singletonList(TEST_ENCODED_LOCATIONS),
+                 metadata.get("x-goog-allowed-resources"));
+  }
+  
+  // Custom GoogleCredentials for testing
+  private static class OAuth2CredentialsWithTrustBoundary extends OAuth2Credentials {
+
+    public OAuth2CredentialsWithTrustBoundary(AccessToken accessToken) {
+      super(accessToken);
+    }
+
+    @Override
+    protected String getTrustBoundaryLookupEndpointUrl() throws IOException {
+      return "https://test.endpoint/trust-boundary";
     }
   }
 }

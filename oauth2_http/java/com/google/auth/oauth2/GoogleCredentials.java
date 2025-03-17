@@ -71,7 +71,7 @@ public class GoogleCredentials extends OAuth2Credentials implements QuotaProject
 
   private static final DefaultCredentialsProvider defaultCredentialsProvider =
       new DefaultCredentialsProvider();
-
+  
   /**
    * Returns the credentials instance from the given access token.
    *
@@ -280,7 +280,7 @@ public class GoogleCredentials extends OAuth2Credentials implements QuotaProject
    * @return true if universe domain equals to {@link Credentials#GOOGLE_DEFAULT_UNIVERSE}, false
    *     otherwise
    */
-  boolean isDefaultUniverseDomain() throws IOException {
+  public boolean isDefaultUniverseDomain() throws IOException {
     return getUniverseDomain().equals(Credentials.GOOGLE_DEFAULT_UNIVERSE);
   }
 
