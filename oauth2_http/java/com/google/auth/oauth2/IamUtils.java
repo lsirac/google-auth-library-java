@@ -83,8 +83,8 @@ class IamUtils {
    * Returns a signature for the provided bytes.
    *
    * @param serviceAccountEmail the email address for the service account used for signing
-   * @param credentials credentials required for making the IAM call
-   * @param transport transport used for building the HTTP request
+   * @param credentials required for making the IAM call
+   * @param transport used for building the HTTP request
    * @param toSign bytes to sign
    * @param additionalFields additional fields to send in the IAM call
    * @return signed bytes
@@ -195,8 +195,8 @@ class IamUtils {
    * Returns an IdToken issued to the serviceAccount with a specified targetAudience
    *
    * @param serviceAccountEmail the email address for the service account to get an ID Token for
-   * @param credentials credentials required for making the IAM call
-   * @param transport transport used for building the HTTP request
+   * @param credentials required for making the IAM call
+   * @param transport used for building the HTTP request
    * @param targetAudience the audience the issued ID token should include
    * @param additionalFields additional fields to send in the IAM call
    * @param credentialTypeForMetrics credential type for credential making this call

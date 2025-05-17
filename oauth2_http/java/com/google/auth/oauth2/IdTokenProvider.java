@@ -75,8 +75,8 @@ public interface IdTokenProvider {
    *
    * @param targetAudience List of audiences the issued ID Token should be valid for. targetAudience
    *     accepts a single string value (multiple audiences are not supported)
-   * @param options List of Credential specific options for for the token. For example, an IDToken
-   *     for a ComputeEngineCredential can return platform specific claims if
+   * @param options List of Credential specific options for the token. For example, an IDToken for a
+   *     ComputeEngineCredential can return platform specific claims if
    *     "ComputeEngineCredentials.ID_TOKEN_FORMAT_FULL" is provided as a list option.
    * @throws IOException if token creation fails
    * @return IdToken object which includes the raw id_token, expiration and audience.

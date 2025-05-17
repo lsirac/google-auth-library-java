@@ -1228,7 +1228,7 @@ StorageOptions options = StorageOptions.newBuilder().setCredentials(credentials)
 Storage storage = options.getService();
 
 // Call GCS APIs.
-// Since we passed the downscoped credential, we will have have limited readonly access to objects
+// Since we passed the downscoped credential, we will have limited readonly access to objects
 // starting with "customer-a" in bucket "bucket-123".
 storage.get(...)
 ```

@@ -128,7 +128,7 @@ public class ImpersonatedCredentials extends GoogleCredentials
    *     serviceAccountB must have the Token Creator on serviceAccountC. Finally, C must have Token
    *     Creator on target_principal. If unset, sourceCredential must have that role on
    *     targetPrincipal.
-   * @param scopes scopes to request during the authorization grant
+   * @param scopes to request during the authorization grant
    * @param lifetime number of seconds the delegated credential should be valid. By default this
    *     value should be at most 3600. However, you can follow <a
    *     href='https://cloud.google.com/iam/docs/creating-short-lived-service-account-credentials#sa-credentials-oauth'>these
@@ -167,7 +167,7 @@ public class ImpersonatedCredentials extends GoogleCredentials
    *     serviceAccountB must have the Token Creator on serviceAccountC. Finally, C must have Token
    *     Creator on target_principal. If unset, sourceCredential must have that role on
    *     targetPrincipal.
-   * @param scopes scopes to request during the authorization grant
+   * @param scopes to request during the authorization grant
    * @param lifetime number of seconds the delegated credential should be valid. By default this
    *     value should be at most 3600. However, you can follow <a
    *     href='https://cloud.google.com/iam/docs/creating-short-lived-service-account-credentials#sa-credentials-oauth'>these
@@ -211,7 +211,7 @@ public class ImpersonatedCredentials extends GoogleCredentials
    *     serviceAccountB must have the Token Creator on serviceAccountC. Finally, C must have Token
    *     Creator on target_principal. If unset, sourceCredential must have that role on
    *     targetPrincipal.
-   * @param scopes scopes to request during the authorization grant
+   * @param scopes to request during the authorization grant
    * @param lifetime number of seconds the delegated credential should be valid. By default this
    *     value should be at most 3600. However, you can follow <a
    *     href='https://cloud.google.com/iam/docs/creating-short-lived-service-account-credentials#sa-credentials-oauth'>these
@@ -259,7 +259,7 @@ public class ImpersonatedCredentials extends GoogleCredentials
    *     serviceAccountB must have the Token Creator on serviceAccountC. Finally, C must have Token
    *     Creator on target_principal. If left unset, sourceCredential must have that role on
    *     targetPrincipal.
-   * @param scopes scopes to request during the authorization grant
+   * @param scopes to request during the authorization grant
    * @param lifetime number of seconds the delegated credential should be valid. By default this
    *     value should be at most 3600. However, you can follow <a
    *     href='https://cloud.google.com/iam/docs/creating-short-lived-service-account-credentials#sa-credentials-oauth'>these
@@ -587,7 +587,7 @@ public class ImpersonatedCredentials extends GoogleCredentials
    * Returns an IdToken for the current Credential.
    *
    * @param targetAudience the audience field for the issued ID token
-   * @param options credential specific options for for the token. For example, an ID token for an
+   * @param options credential specific options for the token. For example, an ID token for an
    *     ImpersonatedCredentials can return the email address within the token claims if
    *     "ImpersonatedCredentials.INCLUDE_EMAIL" is provided as a list option.<br>
    *     Only one option value is supported: "ImpersonatedCredentials.INCLUDE_EMAIL" If no options
