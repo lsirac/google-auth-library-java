@@ -13,7 +13,7 @@ This project consists of 4 artifacts:
 interfaces for Google credentials
 - [*google-auth-library-appengine*](#google-auth-library-appengine): contains App Engine
 credentials. This artifact depends on the App Engine SDK.
-- [*google-auth-library-oauth2-http*](#google-auth-library-oauth2-http): contains 
+* [*google-auth-library-oauth2-http*](oauth2_http/README.md): contains
 a wide variety of credentials and utility methods, including functionality to get 
 Application Default Credentials. Also provides the server-side approach for generating
 downscoped tokens.
@@ -108,7 +108,7 @@ Add the following your pom.xml file
     <dependency>
       <groupId>com.google.auth</groupId>
       <artifactId>google-auth-library-bom</artifactId>
-      <version>1.30.1</version>
+      <version>1.36.0</version>
       <type>pom</type>
       <scope>import</scope>
     </dependency>
@@ -137,7 +137,7 @@ Add the following to your build.gradle file and specify any modules needed.
 ```Groovy
 dependencies {
     // The BOM will manage the module versions and transitive dependencies
-    implementation platform('com.google.auth:google-auth-library-bom:1.30.1')
+    implementation platform('com.google.auth:google-auth-library-bom:1.36.0')
     // Replace with the module(s) that are needed
     implementation 'com.google.auth:google-auth-library-oauth2-http'
 }
@@ -155,7 +155,7 @@ If you are using SBT, add this to your dependencies
 [//]: # ({x-version-update-start:google-auth-library-oauth2-http:released})
 ```Scala
 // Replace this with the implementation module that suits your needs
-libraryDependencies += "com.google.auth" % "google-auth-library-oauth2-http" % "1.30.1"
+libraryDependencies += "com.google.auth" % "google-auth-library-oauth2-http" % "1.36.0"
 ```
 [//]: # ({x-version-update-end})
 
@@ -209,7 +209,7 @@ following are searched (in order) to find the Application Default Credentials:
 4. Google Cloud Shell built-in credentials
 5. Google Compute Engine built-in credentials
    - Skip this check by setting the environment variable `NO_GCE_CHECK=true`
-   - Customize the GCE metadata server address by setting the environment variable `GCE_METADATA_HOST=<hostname>`
+   - Customize the GCE metadata server address by setting the environment variable `GCE_METADATA_HOST=<hostname>` (e.g., for local testing with a GCE metadata emulator, or in environments with specific network configurations).
 
 #### Explicit Credential Loading
 
@@ -1043,7 +1043,9 @@ googleapis.com domain.
 
 [Downscoping with Credential Access Boundaries](https://cloud.google.com/iam/docs/downscoping-short-lived-credentials)
 enables restricting the Identity and Access Management (IAM) permissions that a
-short-lived credential can use for Cloud Storage. This involves creating a
+short-lived credential can use for Cloud Storage.
+
+This involves creating a
 `CredentialAccessBoundary` that defines the restrictions applied to the
 downscoped token. Using downscoped credentials ensures tokens in flight always
 have the least privileges ([Principle of Least Privilege](https://en.wikipedia.org/wiki/Principle_of_least_privilege)).
@@ -1079,7 +1081,9 @@ CredentialAccessBoundary credentialAccessBoundary =
 #### Common Usage Pattern
 
 The common pattern of usage is to have a token broker with elevated access generate these downscoped
-credentials from higher access source credentials and pass the downscoped short-lived access tokens
+credentials from higher access source credentials.
+
+The broker then passes the downscoped short-lived access tokens
 to a token consumer via some secure authenticated channel for limited access to Google Cloud Storage
 resources.
 
@@ -1129,6 +1133,7 @@ CredentialAccessBoundary.AccessBoundaryRule rule =
         .addAvailablePermission(availablePermission)
         .setAvailabilityCondition(
             new AvailabilityCondition(expression, /* title= */ null, /* description= */ null))
+            // title and description are optional human-readable metadata for the condition.
         .build();
 
 // Initialize the DownscopedCredentials class.
@@ -1167,6 +1172,7 @@ CredentialAccessBoundary.AccessBoundaryRule rule =
         .addAvailablePermission(availablePermission)
         .setAvailabilityCondition(
             new AvailabilityCondition(expression, /* title= */ null, /* description= */ null))
+            // title and description are optional human-readable metadata for the condition.
         .build();
 
 // Initialize the ClientSideCredentialAccessBoundaryFactory.
